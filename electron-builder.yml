@@ -1,0 +1,47 @@
+appId: com.prism.ide
+productName: Prism
+directories:
+  buildResources: build
+  output: dist
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!knowledge/*'
+  - '!learn-runtime/*'
+  - '!{dist,release,build/*.png}/**'
+  - '!.claude/**'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,README.md}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+extraResources:
+  - from: knowledge
+    to: knowledge
+  - from: learn-runtime
+    to: learn-runtime
+asarUnpack:
+  - node_modules/@lydell/**
+# node-pty ships prebuilt N-API binaries, so nothing needs rebuilding for Electron.
+npmRebuild: false
+win:
+  executableName: Prism
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: Prism
+  artifactName: Prism-Setup-${version}.${ext}
+# Auto-update: set owner/repo to your GitHub repository, then publish with `npm run release`.
+publish:
+  provider: github
+  owner: Maskedgamer121
+  repo: Prism
+  releaseType: release
+mac:
+  icon: build/icon.png
+linux:
+  icon: build/icon.png
+  target: [AppImage]
