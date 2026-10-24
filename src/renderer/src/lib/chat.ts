@@ -107,7 +107,7 @@ function apply(messages: UiMessage[], e: AgentEvent): UiMessage[] {
       break
     }
     case 'notice':
-      blocks.push({ kind: 'notice', level: e.level, text: e.text })
+      blocks.push({ kind: 'notice', level: e.level, text: e.text, action: e.action })
       break
     case 'error':
       blocks.push({ kind: 'notice', level: 'error', text: e.message })

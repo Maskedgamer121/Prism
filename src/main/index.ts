@@ -6,7 +6,7 @@ import { Agent } from './agent/agent'
 import { getTopic, listTopics, userDir } from './agent/knowledge'
 import { findClaudeCli } from './agent/providers/claude-code'
 import { listAnthropicModels } from './agent/providers/anthropic'
-import { listOllamaModels, ollamaPull } from './agent/providers/ollama'
+import { listOllamaModels, ollamaContextLength, ollamaPull } from './agent/providers/ollama'
 import { listOpenAIModels } from './agent/providers/openai'
 import { gitCommitAll, gitInit, gitShowHead, gitStatus } from './git'
 import { getProvider, getPublicSettings, loadSettings, rememberFolder, saveSettings, setProviderModels, updateSettings } from './settings'
@@ -155,6 +155,10 @@ function registerIpc(): void {
     else models = p.models
     setProviderModels(providerId, models)
     return getPublicSettings()
+  })
+  ipcMain.handle('ollama:contextLength', async (_e, model: string) => {
+    const p = getProvider('ollama')
+    return p ? ollamaContextLength(p, model).catch(() => null) : null
   })
   ipcMain.handle('ollama:pull', async (_e, model: string) => {
     const p = getProvider('ollama')

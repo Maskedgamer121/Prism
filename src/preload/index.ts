@@ -34,6 +34,7 @@ const api = {
     listModels: (providerId: string): Promise<Settings> => ipcRenderer.invoke('models:list', providerId),
     detect: (): Promise<{ claudeCli: string | null; ollama: boolean; lmstudio: boolean }> => ipcRenderer.invoke('providers:detect'),
     pullOllama: (model: string): Promise<Settings> => ipcRenderer.invoke('ollama:pull', model),
+    ollamaContextLength: (model: string): Promise<number | null> => ipcRenderer.invoke('ollama:contextLength', model),
     onPullProgress: (cb: (model: string, status: string, percent: number) => void) => on<[string, string, number]>('ollama:pull-progress', cb)
   },
   workspace: {

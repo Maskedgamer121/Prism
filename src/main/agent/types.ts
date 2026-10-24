@@ -1,4 +1,4 @@
-import type { Effort, ProviderConfig, ToolMeta } from '@shared/types'
+import type { Effort, NoticeAction, ProviderConfig, ToolMeta } from '@shared/types'
 
 /**
  * Provider-neutral conversation history. Each provider converts it to its own
@@ -33,7 +33,7 @@ export interface TurnCallbacks {
   /** Anthropic server tools (web search/fetch) run remotely; we only display them. */
   onServerTool?: (id: string, name: string, input: unknown) => void
   onServerToolResult?: (id: string, output: string, isError: boolean, meta?: ToolMeta) => void
-  onNotice: (level: 'info' | 'warn', text: string) => void
+  onNotice: (level: 'info' | 'warn', text: string, action?: NoticeAction) => void
   onUsage: (input: number, output: number, cacheRead?: number) => void
 }
 

@@ -32,6 +32,7 @@ import { useApp, baseName, relToWorkspace, updateSettings, toast, errorText, sho
 import { allCommands, deleteChat, loadChat, newChat, sendMessage, stopChat } from '../lib/chat'
 import { activeFilePath, openFile } from '../lib/editor'
 import { acceptAll, rejectAll, reviewStats } from '../lib/review'
+import { CONTEXT_SIZES, formatTokens, nextContextSize, raiseContext, setContextSize, useModelContextMax } from '../lib/context'
 import { Markdown } from './Markdown'
 import { ToolCard } from './ToolCard'
 import { FileIcon, Menu, fuzzyScore, type MenuItem } from './ui'
@@ -99,9 +100,23 @@ function Block({ block, live }: { block: UiBlock; live: boolean }) {
         <div className={`notice ${block.level}`}>
           {block.level === 'info' ? <Info size={14} /> : <AlertTriangle size={14} />}
           <span>{block.text}</span>
+          {block.action === 'raise-context' && <RaiseContextButton />}
         </div>
       )
   }
+}
+
+function RaiseContextButton() {
+  const settings = useApp((s) => s.settings)
+  const isOllama = settings?.providers.find((p) => p.id === settings.activeProviderId)?.kind === 'ollama'
+  const max = useModelContextMax(settings?.activeModel, isOllama)
+  if (!settings || !isOllama) return null
+  const next = nextContextSize(settings.ollamaNumCtx, max)
+  return (
+    <button className="btn sm notice-action" disabled={!next} onClick={() => void raiseContext()} title={next ? 'Uses more memory; the model reloads once' : 'Already at the largest size for this model'}>
+      {next ? `Raise to ${formatTokens(next)}` : `${formatTokens(settings.ollamaNumCtx)} (max)`}
+    </button>
+  )
 }
 
 const Message = memo(function Message({ msg, live }: { msg: UiMessage; live: boolean }) {
@@ -233,7 +248,7 @@ export function Composer({ center }: { center?: boolean }) {
   const [text, setText] = useState('')
   const [popupIndex, setPopupIndex] = useState(0)
   const [caret, setCaret] = useState(0)
-  const [menu, setMenu] = useState<{ kind: 'mode' | 'model' | 'perm'; rect: DOMRect } | null>(null)
+  const [menu, setMenu] = useState<{ kind: 'mode' | 'model' | 'perm' | 'ctx'; rect: DOMRect } | null>(null)
   const ta = useRef<HTMLTextAreaElement>(null)
   const modelMenu = useModelMenu()
 
@@ -337,6 +352,9 @@ export function Composer({ center }: { center?: boolean }) {
   }
 
   const providerName = settings?.providers.find((p) => p.id === settings.activeProviderId)?.name ?? ''
+  const isOllama = settings?.providers.find((p) => p.id === settings.activeProviderId)?.kind === 'ollama'
+  const ctxMax = useModelContextMax(settings?.activeModel, isOllama)
+  const ctxFill = isOllama && settings ? Math.min(1, (usage?.input ?? 0) / settings.ollamaNumCtx) : 0
   const mode = MODE_META[chatMode]
   const perm = settings ? PERM_META[settings.permissionMode] : PERM_META.ask
 
@@ -350,6 +368,17 @@ export function Composer({ center }: { center?: boolean }) {
         checked: chatMode === m,
         onClick: () => useApp.setState({ chatMode: m })
       }))
+    if (menu.kind === 'ctx')
+      return CONTEXT_SIZES.map((c) => {
+        const tooBig = ctxMax !== null && c.tokens > ctxMax
+        return {
+          label: `${formatTokens(c.tokens)} tokens`,
+          sub: tooBig ? `This model supports up to ${formatTokens(ctxMax!)}` : c.hint,
+          checked: settings?.ollamaNumCtx === c.tokens,
+          disabled: tooBig,
+          onClick: () => void setContextSize(c.tokens)
+        }
+      })
     if (menu.kind === 'perm')
       return (Object.keys(PERM_META) as PermissionMode[]).map((m) => ({
         label: PERM_META[m].label,
@@ -437,7 +466,19 @@ export function Composer({ center }: { center?: boolean }) {
             <ChevronDown size={11} />
           </button>
           <div className="grow" />
-          {usage && (
+          {isOllama && settings ? (
+            <button
+              className={`ctx-meter${ctxFill > 0.9 ? ' full' : ctxFill > 0.65 ? ' high' : ''}`}
+              onClick={(e) => setMenu({ kind: 'ctx', rect: e.currentTarget.getBoundingClientRect() })}
+              title={`Context window: ${usage ? `${usage.input.toLocaleString()} of ` : ''}${settings.ollamaNumCtx.toLocaleString()} tokens in use. Click to change the size.`}
+            >
+              <span className="ctx-bar">
+                <span style={{ width: `${Math.max(ctxFill * 100, usage ? 4 : 0)}%` }} />
+              </span>
+              {usage ? `${formatTokens(usage.input)}/` : ''}
+              {formatTokens(settings.ollamaNumCtx)}
+            </button>
+          ) : usage && (
             <span className="usage" title={`Input ${usage.input.toLocaleString()} tokens · Output ${usage.output.toLocaleString()} tokens${usage.cacheRead ? ` · ${usage.cacheRead.toLocaleString()} from cache` : ''}`}>
               {usage.input >= 1000 ? `${(usage.input / 1000).toFixed(1)}k` : usage.input} ctx
             </span>

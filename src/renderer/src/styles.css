@@ -1381,7 +1381,7 @@ kbd {
 /* Long model names (hf.co/…:Q4_K_M) truncate instead of squeezing the other controls. */
 .composer .bar .model-pill {
   flex-shrink: 1;
-  min-width: 48px;
+  min-width: 72px;
 }
 .composer .bar .icon-btn,
 .composer .bar .usage {
@@ -2372,4 +2372,50 @@ kbd {
   50% {
     opacity: 0;
   }
+}
+
+/* Context window meter in the chat box (Ollama models): click to change the size. */
+.ctx-meter {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 5px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ctx-meter:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.ctx-bar {
+  width: 18px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-strong);
+  overflow: hidden;
+}
+.ctx-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--green, #3fb950);
+}
+.ctx-meter.high .ctx-bar > span {
+  background: var(--yellow, #d29922);
+}
+.ctx-meter.full .ctx-bar > span {
+  background: var(--red, #f85149);
+}
+.ctx-meter.full {
+  color: var(--red, #f85149);
+}
+.notice .notice-action {
+  flex: none;
+  margin-left: auto;
+  align-self: center;
 }

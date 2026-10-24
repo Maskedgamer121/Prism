@@ -111,7 +111,7 @@ export type AgentEvent =
   | { type: 'approval'; requestId: string; toolId: string; name: string; input: unknown }
   | { type: 'plan'; items: PlanItem[] }
   | { type: 'usage'; inputTokens: number; outputTokens: number; cacheRead?: number }
-  | { type: 'notice'; level: 'info' | 'warn'; text: string }
+  | { type: 'notice'; level: 'info' | 'warn'; text: string; action?: NoticeAction }
   | { type: 'error'; message: string }
   | { type: 'done'; stopReason?: string }
 
@@ -136,6 +136,9 @@ export interface ChatSummary {
   updatedAt: number
 }
 
+/** A button shown with a chat notice. */
+export type NoticeAction = 'raise-context'
+
 /** UI representation of a chat, persisted by the renderer. */
 export type UiBlock =
   | { kind: 'text'; text: string }
@@ -154,7 +157,7 @@ export type UiBlock =
       partial?: string
     }
   | { kind: 'plan'; items: PlanItem[] }
-  | { kind: 'notice'; level: 'info' | 'warn' | 'error'; text: string }
+  | { kind: 'notice'; level: 'info' | 'warn' | 'error'; text: string; action?: NoticeAction }
 
 export interface UiMessage {
   id: string

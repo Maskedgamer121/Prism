@@ -202,7 +202,7 @@ export class Agent {
             emit({ type: 'tool_input', id, name, input })
           },
           onServerToolResult: (id, output, isError, meta) => emit({ type: 'tool_result', id, output, isError, meta }),
-          onNotice: (level, text) => emit({ type: 'notice', level, text }),
+          onNotice: (level, text, action) => emit({ type: 'notice', level, text, action }),
           onUsage: (i, o, c) => {
             totalIn = i
             totalOut += o

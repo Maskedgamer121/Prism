@@ -114,7 +114,8 @@ function fitHistory(req: TurnRequest, system: string): NMessage[] {
     trimNoticeShown.add(req.messages)
     req.onNotice(
       'info',
-      `This chat is longer than ${req.model}'s ${req.ollamaNumCtx.toLocaleString()}-token context window, so the oldest steps are left out of what the model sees. Start a new chat or raise "Ollama context window" in Settings → Agent to keep more.`
+      `This chat is longer than ${req.model}'s ${req.ollamaNumCtx.toLocaleString()}-token context window, so the oldest steps are left out of what the model sees. Start a new chat or raise "Ollama context window" in Settings → Agent to keep more.`,
+      'raise-context'
     )
   }
   return fit.messages
@@ -123,7 +124,8 @@ function fitHistory(req: TurnRequest, system: string): NMessage[] {
 function contextFullNotice(req: TurnRequest): void {
   req.onNotice(
     'warn',
-    `The reply didn't fit in ${req.model}'s ${req.ollamaNumCtx.toLocaleString()}-token context window. Raise "Ollama context window" in Settings → Agent (if your PC has the memory), ask for a smaller change, or start a new chat.`
+    `The reply didn't fit in ${req.model}'s ${req.ollamaNumCtx.toLocaleString()}-token context window. Raise "Ollama context window" in Settings → Agent (if your PC has the memory), ask for a smaller change, or start a new chat.`,
+    'raise-context'
   )
 }
 
@@ -336,6 +338,14 @@ export async function ollamaPull(p: ProviderConfig, model: string, onProgress: (
 /** Loads a model into memory ahead of time so the first suggestion isn't slow. */
 export async function ollamaWarm(p: ProviderConfig, model: string, numCtx?: number, keepAlive = '30m'): Promise<void> {
   await post(p, '/api/generate', { model, keep_alive: keepAlive, options: { num_ctx: numCtx } }, AbortSignal.timeout(120_000))
+}
+
+/** The longest context the model was trained for (Ollama's `<arch>.context_length`), if reported. */
+export async function ollamaContextLength(p: ProviderConfig, model: string): Promise<number | null> {
+  const res = await post(p, '/api/show', { model }, AbortSignal.timeout(5000))
+  const info = ((await res.json()) as { model_info?: Record<string, unknown> }).model_info ?? {}
+  const key = Object.keys(info).find((k) => k.endsWith('.context_length'))
+  return key && typeof info[key] === 'number' ? (info[key] as number) : null
 }
 
 export async function listOllamaModels(p: ProviderConfig): Promise<string[]> {
