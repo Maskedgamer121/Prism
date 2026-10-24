@@ -17,7 +17,7 @@ export function Welcome() {
 
   if (messages.length) {
     return (
-      <div className="welcome" style={{ padding: 0 }}>
+      <div className="welcome chat-mode">
         <ChatPanel center />
       </div>
     )

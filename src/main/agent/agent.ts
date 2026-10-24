@@ -414,7 +414,7 @@ export class Agent {
               .join('\n') + '\n\n'
           : ''
         try {
-          const fim = await ollamaFim(provider, model, header + req.prefix, req.suffix, controller.signal)
+          const fim = await ollamaFim(provider, model, header + req.prefix, req.suffix, controller.signal, loadSettings().ollamaNumCtx)
           fimSupport.set(model, true)
           return cleanCompletion(fim, req.prefix)
         } catch (err) {
@@ -438,11 +438,14 @@ export class Agent {
   }
 
   /** Loads the autocomplete model ahead of time (local models take seconds to load). */
+  /** Loads the Ollama models in use (autocomplete, then chat) so the first request isn't a cold start. */
   async warmAutocomplete(): Promise<void> {
-    const ac = loadSettings().autocomplete
-    if (!ac.enabled || !ac.model) return
-    const provider = getProvider(ac.providerId)
-    if (provider?.kind === 'ollama') await ollamaWarm(provider, ac.model).catch(() => {})
+    const s = loadSettings()
+    const ac = s.autocomplete
+    const acProvider = ac.enabled && ac.model ? getProvider(ac.providerId) : undefined
+    if (acProvider?.kind === 'ollama') await ollamaWarm(acProvider, ac.model, s.ollamaNumCtx).catch(() => {})
+    const chat = getProvider(s.activeProviderId)
+    if (chat?.kind === 'ollama' && s.activeModel && s.activeModel !== ac.model) await ollamaWarm(chat, s.activeModel, s.ollamaNumCtx, '10m').catch(() => {})
   }
 }
 

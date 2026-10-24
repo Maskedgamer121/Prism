@@ -47,7 +47,7 @@ export interface AppState {
   /** Section to show when settings open (e.g. 'about'). */
   settingsSection?: string
   toasts: Toast[]
-  cursor: { line: number; col: number; language: string; eol: string } | null
+  cursor: { line: number; col: number; language: string; eol: string; indent: string } | null
   detected: { claudeCli: string | null; ollama: boolean; lmstudio: boolean } | null
 
   chatId: string
@@ -170,6 +170,21 @@ export function relToWorkspace(p: string): string {
   const a = norm(p)
   const b = norm(ws).replace(/\/$/, '')
   return a.toLowerCase().startsWith(b.toLowerCase() + '/') ? a.slice(b.length + 1) : a
+}
+
+/** Display name for a model: drops the hf.co/owner/ prefix and :latest tag. */
+export function shortModelName(model: string): string {
+  if (model === 'default') return 'Default model'
+  return model.replace(/^hf\.co\/[^/]+\//, '').replace(/:latest$/, '')
+}
+
+/**
+ * One spelling per file, so the same file never opens twice: on Windows, tools and the AI may
+ * write `c:/proj/a.py` where the explorer has `C:\proj\a.py`.
+ */
+export function canonicalPath(p: string): string {
+  if (!/^[a-zA-Z]:[\\/]/.test(p)) return p
+  return p[0].toUpperCase() + p.slice(1).replace(/\//g, '\\')
 }
 
 export function joinPath(base: string, rel: string): string {

@@ -60,14 +60,37 @@ function firstDifference(expected: string, got: string): string {
   return ''
 }
 
+/**
+ * Asks the TypeScript worker directly instead of reading editor markers, which lag behind
+ * typing — a student who fixes the code and clicks Check at once would see the old error.
+ */
+async function typeErrors(code: string): Promise<{ line: number; message: string }[]> {
+  const model = monaco.editor.getModels().find((m) => m.getLanguageId() === 'typescript' && m.getValue() === code)
+  if (!model) return []
+  try {
+    const worker = await (await monaco.typescript.getTypeScriptWorker())(model.uri)
+    const file = model.uri.toString()
+    const diags = [...(await worker.getSyntacticDiagnostics(file)), ...(await worker.getSemanticDiagnostics(file))]
+    return diags
+      .filter((d) => d.category === 1)
+      .map((d) => ({
+        line: model.getPositionAt(d.start ?? 0).lineNumber,
+        message: typeof d.messageText === 'string' ? d.messageText : d.messageText.messageText
+      }))
+  } catch {
+    return monaco.editor
+      .getModelMarkers({ resource: model.uri })
+      .filter((m) => m.severity === monaco.MarkerSeverity.Error)
+      .map((m) => ({ line: m.startLineNumber, message: m.message }))
+  }
+}
+
 export async function checkExercise(ex: Exercise, language: LearnLanguage, code: string): Promise<CheckOutcome> {
   const clean = stripComments(code, language)
   const requirements = (ex.requires ?? []).filter((r) => !new RegExp(r.pattern, 'm').test(clean)).map((r) => r.message)
   if (language === 'typescript') {
     // The runtime only strips types, so use the editor's type checker for type errors.
-    const model = monaco.editor.getModels().find((m) => m.getLanguageId() === 'typescript' && m.getValue() === code)
-    const errors = model ? monaco.editor.getModelMarkers({ resource: model.uri }).filter((m) => m.severity === monaco.MarkerSeverity.Error) : []
-    for (const e of errors.slice(0, 3)) requirements.push(`Type error on line ${e.startLineNumber}: ${e.message}`)
+    for (const e of (await typeErrors(code)).slice(0, 3)) requirements.push(`Type error on line ${e.line}: ${e.message}`)
   }
   const [student, goal] = await Promise.all([window.prism.learn.collect({ language, kind: ex.kind, code }, ex.tests), solutionResult(ex, language)])
   const tests: TestOutcome[] = []

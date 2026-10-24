@@ -59,18 +59,26 @@ monaco.editor.defineTheme('prism-dark', {
 
 // The TypeScript worker validates files in isolation; without the project's
 // types it would flag every import, so keep only syntax diagnostics.
-const tsDefaults = (monaco.languages as unknown as { typescript?: { typescriptDefaults: { setDiagnosticsOptions(o: object): void; setCompilerOptions(o: object): void }; javascriptDefaults: { setDiagnosticsOptions(o: object): void } } }).typescript
-if (tsDefaults) {
-  tsDefaults.typescriptDefaults.setDiagnosticsOptions({ noSemanticValidation: true, noSyntaxValidation: false })
-  tsDefaults.javascriptDefaults.setDiagnosticsOptions({ noSemanticValidation: true, noSyntaxValidation: false })
-  // No DOM library: lesson code like `const name = …` would clash with `window.name`.
-  // Learn programs only get console and prompt, so declare just those.
-  tsDefaults.typescriptDefaults.setCompilerOptions({ jsx: 4, target: 99, allowNonTsExtensions: true, allowJs: true, strict: true, lib: ['esnext'] })
-  ;(tsDefaults.typescriptDefaults as unknown as { addExtraLib(src: string, path: string): void }).addExtraLib(
-    'declare const console: { log(...a: unknown[]): void; info(...a: unknown[]): void; warn(...a: unknown[]): void; error(...a: unknown[]): void; table(...a: unknown[]): void }\ndeclare function prompt(question?: string): string | null\n',
-    'ts:prism-learn.d.ts'
-  )
-}
+// (Monaco 0.5x exports this as `monaco.typescript`; the old `monaco.languages.typescript` is gone.)
+const tsLang = monaco.typescript
+tsLang.typescriptDefaults.setDiagnosticsOptions({ noSemanticValidation: true, noSyntaxValidation: false })
+tsLang.javascriptDefaults.setDiagnosticsOptions({ noSemanticValidation: true, noSyntaxValidation: false })
+// No DOM library: lesson code like `const name = …` would clash with `window.name`.
+// Learn programs only get console and prompt, so declare just those.
+tsLang.typescriptDefaults.setCompilerOptions({
+  jsx: tsLang.JsxEmit.ReactJSX,
+  target: tsLang.ScriptTarget.ESNext,
+  allowNonTsExtensions: true,
+  allowJs: true,
+  strict: true,
+  lib: ['esnext'],
+  // Every file is its own module, so two lesson editors that both declare `total` don't clash.
+  moduleDetection: 3 // ts.ModuleDetectionKind.Force
+})
+tsLang.typescriptDefaults.addExtraLib(
+  'declare const console: { log(...a: unknown[]): void; info(...a: unknown[]): void; warn(...a: unknown[]): void; error(...a: unknown[]): void; table(...a: unknown[]): void }\ndeclare function prompt(question?: string): string | null\n',
+  'ts:prism-learn.d.ts'
+)
 
 const EXT_LANG: Record<string, string> = {
   ts: 'typescript', tsx: 'typescript', mts: 'typescript', cts: 'typescript', js: 'javascript', jsx: 'javascript', mjs: 'javascript', cjs: 'javascript',

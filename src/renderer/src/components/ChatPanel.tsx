@@ -28,7 +28,7 @@ import {
   FileCode2
 } from 'lucide-react'
 import type { ChatMode, PermissionMode, PlanItem, UiBlock, UiMessage } from '@shared/types'
-import { useApp, baseName, relToWorkspace, updateSettings, toast, errorText } from '../store'
+import { useApp, baseName, relToWorkspace, updateSettings, toast, errorText, shortModelName } from '../store'
 import { allCommands, deleteChat, loadChat, newChat, sendMessage, stopChat } from '../lib/chat'
 import { activeFilePath, openFile } from '../lib/editor'
 import { acceptAll, rejectAll, reviewStats } from '../lib/review'
@@ -426,14 +426,14 @@ export function Composer({ center }: { center?: boolean }) {
             <ChevronDown size={11} />
           </button>
           <button
-            className="pill"
+            className="pill model-pill"
             onClick={(e) => {
               void refreshLocalModels()
               setMenu({ kind: 'model', rect: e.currentTarget.getBoundingClientRect() })
             }}
-            title={providerName}
+            title={`${providerName}: ${settings?.activeModel ?? ''}`}
           >
-            <span>{settings?.activeModel || 'Choose a model'}</span>
+            <span>{settings?.activeModel ? shortModelName(settings.activeModel) : 'Choose a model'}</span>
             <ChevronDown size={11} />
           </button>
           <div className="grow" />

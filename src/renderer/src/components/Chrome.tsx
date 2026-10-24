@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { BookOpen, Files, GitBranch, RefreshCw, Search, Settings, Sparkles, Shield, CheckCircle2, AlertCircle, Info } from 'lucide-react'
-import { useApp, baseName, joinPath } from '../store'
+import { useApp, baseName, joinPath, shortModelName } from '../store'
 import { commands, onFsChangedDebounced, showView } from '../lib/actions'
 import { openFile } from '../lib/editor'
 import { useModelMenu } from './ChatPanel'
@@ -79,7 +79,7 @@ export function StatusBar() {
           <span className="sb-item">
             Ln {cursor.line}, Col {cursor.col}
           </span>
-          <span className="sb-item">Spaces: {settings?.editor.tabSize}</span>
+          <span className="sb-item">{cursor.indent}</span>
           <span className="sb-item">UTF-8</span>
           <span className="sb-item">{cursor.eol}</span>
           <span className="sb-item">{cursor.language}</span>
@@ -89,7 +89,7 @@ export function StatusBar() {
         <Shield size={12} /> {perm}
       </button>
       <button className="sb-item" title="Switch model" onClick={(e) => setMenu(e.currentTarget.getBoundingClientRect())}>
-        <Sparkles size={12} /> {settings?.activeModel || 'No model'}
+        <Sparkles size={12} /> {settings?.activeModel ? shortModelName(settings.activeModel) : 'No model'}
       </button>
       {menu && <Menu items={modelMenu()} anchor={menu} onClose={() => setMenu(null)} align="right" up />}
     </div>

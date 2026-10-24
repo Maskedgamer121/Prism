@@ -15,6 +15,9 @@ import { getRoot, readDir, readFileSafe, resolveInWorkspace, searchText, setRoot
 import { registerLearnIpc, stopAllRuns } from './learn'
 import { initUpdater } from './updater'
 
+// Dev harness: a throwaway profile, so automated runs never touch the real one.
+if (process.env.PRISM_USER_DATA && !app.isPackaged) app.setPath('userData', process.env.PRISM_USER_DATA)
+
 let win: BrowserWindow | null = null
 const send = (channel: string, ...args: unknown[]) => {
   if (win && !win.isDestroyed()) win.webContents.send(channel, ...args)
@@ -79,6 +82,12 @@ function createWindow(): void {
 function setupScreenshotHarness(w: BrowserWindow): void {
   const out = process.env.PRISM_SHOT
   if (!out || app.isPackaged) return
+  // Lets a harness script capture several screens in one run.
+  ipcMain.handle('dev:shot', async (_e, path: string) => {
+    const image = await w.webContents.capturePage()
+    mkdirSync(dirname(path), { recursive: true })
+    writeFileSync(path, image.toPNG())
+  })
   w.webContents.on('console-message', (e) => {
     const ev = e as unknown as { level?: string; message?: string }
     if (ev.level === 'error' || ev.level === 'warning') console.log(`[renderer ${ev.level}]`, ev.message)
@@ -133,7 +142,7 @@ function registerIpc(): void {
   })
   ipcMain.handle('settings:update', (_e, patch: Partial<Settings>) => {
     const out = updateSettings(patch)
-    if (patch.autocomplete) void agent.warmAutocomplete()
+    if (patch.autocomplete || patch.activeModel || patch.ollamaNumCtx) void agent.warmAutocomplete()
     return out
   })
   ipcMain.handle('models:list', async (_e, providerId: string) => {

@@ -1,5 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { GraphicsEvent, RunKind, LearnLanguage, Scene } from '@shared/learn'
+import type { GraphicsEvent, RunKind, LearnLanguage, Scene, RunMessage } from '@shared/learn'
+
+// One IPC listener shared by every runner on the page (a lesson can have a dozen live examples).
+type RunListener = (runId: string, msg: RunMessage) => void
+const runListeners = new Set<RunListener>()
+let unsubscribeIpc: (() => void) | null = null
+
+function onRunEvent(cb: RunListener): () => void {
+  runListeners.add(cb)
+  unsubscribeIpc ??= window.prism.learn.onEvent((runId, msg) => runListeners.forEach((l) => l(runId, msg)))
+  return () => {
+    runListeners.delete(cb)
+    if (!runListeners.size && unsubscribeIpc) {
+      unsubscribeIpc()
+      unsubscribeIpc = null
+    }
+  }
+}
 
 export interface RunState {
   running: boolean
@@ -70,7 +87,7 @@ export function useRun(language: LearnLanguage, kind: RunKind) {
   }
 
   useEffect(() => {
-    return window.prism.learn.onEvent((runId, msg) => {
+    return onRunEvent((runId, msg) => {
       if (runId !== id.current) return
       switch (msg.type) {
         case 'print':

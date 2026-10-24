@@ -20,7 +20,7 @@ import {
   Zap
 } from 'lucide-react'
 import type { Exercise, LearnLanguage, Lesson, Section, Track } from '@shared/learn'
-import { errorText, toast, updateSettings, useApp } from '../store'
+import { errorText, shortModelName, toast, updateSettings, useApp } from '../store'
 import { Select } from '../components/Select'
 import { CodeBox } from './CodeBox'
 import { Callout, DocCard, LearnMd, RunButton, RunnableExample } from './Blocks'
@@ -739,7 +739,7 @@ function ChallengesPage({ track, exerciseId }: { track: Track; exerciseId?: stri
         <Wand2 size={22} /> AI challenges
       </h1>
       <p className="muted">
-        Fresh practice made for you by the AI ({model || 'no model selected'}), at your level. Every challenge is checked by running its own solution before you get it, and is graded exactly like the course exercises.
+        Fresh practice made for you by the AI ({model ? shortModelName(model) : 'no model selected'}), at your level. Every challenge is checked by running its own solution before you get it, and is graded exactly like the course exercises.
       </p>
       <div className="gen-box">
         <div className="field" style={{ flex: 1 }}>

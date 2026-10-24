@@ -25,10 +25,10 @@ interface Props {
 // Type errors are only shown while a TypeScript lesson is open; in real projects the
 // editor can't see imported types, so semantic checks stay off there.
 let typeCheckUsers = 0
+let tsModelSeq = 0
 function typeCheckLessons(delta: number): void {
   typeCheckUsers = Math.max(0, typeCheckUsers + delta)
-  const ts = (monaco.languages as unknown as { typescript?: { typescriptDefaults: { setDiagnosticsOptions(o: object): void } } }).typescript
-  ts?.typescriptDefaults.setDiagnosticsOptions({ noSemanticValidation: typeCheckUsers === 0, noSyntaxValidation: false })
+  monaco.typescript.typescriptDefaults.setDiagnosticsOptions({ noSemanticValidation: typeCheckUsers === 0, noSyntaxValidation: false })
 }
 
 /** A compact Monaco editor for lessons and exercises. Grows with its content. */
@@ -44,7 +44,8 @@ export function CodeBox({ value, onChange, language, readOnly, minLines = 2, max
 
   useEffect(() => {
     if (language === 'typescript') typeCheckLessons(+1)
-    const model = monaco.editor.createModel(value, language)
+    // TypeScript models need a .ts name, or the worker treats them as JavaScript and skips type checks.
+    const model = monaco.editor.createModel(value, language, language === 'typescript' ? monaco.Uri.parse(`inmemory://learn/${++tsModelSeq}.ts`) : undefined)
     const editor = monaco.editor.create(host.current!, {
       model,
       theme: 'prism-dark',

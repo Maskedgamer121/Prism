@@ -1,4 +1,4 @@
-import { useApp, baseName, toast, errorText, type Tab } from '../store'
+import { useApp, baseName, toast, errorText, canonicalPath, type Tab } from '../store'
 import { languageFor, modelUri, monaco } from './monaco'
 
 const savedVersion = new Map<string, number>()
@@ -53,13 +53,15 @@ async function ensureModel(path: string): Promise<monaco.editor.ITextModel | nul
     return null
   }
   model = monaco.editor.createModel(file.content, languageFor(path), modelUri(path))
-  model.updateOptions({ tabSize: useApp.getState().settings?.editor.tabSize ?? 2 })
+  // Keep each file's own indentation (a 4-space Python file stays 4 spaces); the setting is the fallback.
+  model.detectIndentation(true, useApp.getState().settings?.editor.tabSize ?? 2)
   savedVersion.set(path, model.getAlternativeVersionId())
   model.onDidChangeContent(() => refreshDirty(path))
   return model
 }
 
 export async function openFile(path: string, line?: number): Promise<void> {
+  path = canonicalPath(path)
   try {
     const model = await ensureModel(path)
     if (!model) return
@@ -186,5 +188,9 @@ export function runEditorAction(id: string): void {
     return
   }
   activeEditor.focus()
-  activeEditor.trigger('menu', id, null)
+  // Monaco's undo/redo commands act on whatever has keyboard focus; go to the model directly.
+  const model = activeEditor.getModel()
+  if (id === 'undo' && model) void model.undo()
+  else if (id === 'redo' && model) void model.redo()
+  else activeEditor.trigger('menu', id, null)
 }

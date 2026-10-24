@@ -281,12 +281,13 @@ export async function ollamaComplete(req: CompleteRequest): Promise<string> {
 }
 
 /** Fill-in-the-middle completion for coder models (qwen2.5-coder, codellama, starcoder2…). */
-export async function ollamaFim(p: ProviderConfig, model: string, prefix: string, suffix: string, signal: AbortSignal): Promise<string> {
+export async function ollamaFim(p: ProviderConfig, model: string, prefix: string, suffix: string, signal: AbortSignal, numCtx?: number): Promise<string> {
   const res = await post(
     p,
     '/api/generate',
     // keep_alive stops Ollama unloading the model between keystrokes (reloading takes seconds).
-    { model, prompt: prefix, suffix, stream: false, keep_alive: '30m', options: { num_predict: 64, temperature: 0.2, stop: ['\n\n\n'] } },
+    // Same num_ctx as chat: Ollama reloads a model whenever the context size changes.
+    { model, prompt: prefix, suffix, stream: false, keep_alive: '30m', options: { num_ctx: numCtx, num_predict: 64, temperature: 0.2, stop: ['\n\n\n'] } },
     signal
   )
   const data = (await res.json()) as { response?: string }
@@ -304,8 +305,8 @@ export async function ollamaPull(p: ProviderConfig, model: string, onProgress: (
 }
 
 /** Loads a model into memory ahead of time so the first suggestion isn't slow. */
-export async function ollamaWarm(p: ProviderConfig, model: string): Promise<void> {
-  await post(p, '/api/generate', { model, keep_alive: '30m' }, AbortSignal.timeout(120_000))
+export async function ollamaWarm(p: ProviderConfig, model: string, numCtx?: number, keepAlive = '30m'): Promise<void> {
+  await post(p, '/api/generate', { model, keep_alive: keepAlive, options: { num_ctx: numCtx } }, AbortSignal.timeout(120_000))
 }
 
 export async function listOllamaModels(p: ProviderConfig): Promise<string[]> {

@@ -1,5 +1,5 @@
 import { diffLines } from '@shared/diff'
-import { useApp, toast, errorText, joinPath } from '../store'
+import { useApp, toast, errorText, joinPath, canonicalPath } from '../store'
 import { getModel, saveFile, openFile } from './editor'
 
 /**
@@ -21,8 +21,8 @@ export const norm = (p: string) => p.replace(/\\/g, '/').toLowerCase()
 
 export function absPath(p: string): string {
   const ws = useApp.getState().workspace
-  if (!ws || /^([a-zA-Z]:[\\/]|\/)/.test(p)) return p
-  return joinPath(ws, p)
+  if (!ws || /^([a-zA-Z]:[\\/]|\/)/.test(p)) return canonicalPath(p)
+  return canonicalPath(joinPath(ws, p))
 }
 
 export function hunksOf(baseline: string, current: string): Hunk[] {

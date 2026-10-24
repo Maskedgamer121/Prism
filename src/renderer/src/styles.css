@@ -842,6 +842,7 @@ kbd {
 }
 .chat.center {
   flex: 1;
+  min-height: 0;
   max-width: 860px;
   margin: 0 auto;
   width: 100%;
@@ -1374,8 +1375,13 @@ kbd {
   min-width: 0;
 }
 .composer .bar .pill {
-  flex-shrink: 1;
+  flex-shrink: 0;
   min-width: 0;
+}
+/* Long model names (hf.co/…:Q4_K_M) truncate instead of squeezing the other controls. */
+.composer .bar .model-pill {
+  flex-shrink: 1;
+  min-width: 48px;
 }
 .composer .bar .icon-btn,
 .composer .bar .usage {
@@ -1492,6 +1498,12 @@ kbd {
   overflow-y: auto;
   padding: 0 24px;
   background: var(--bg-1);
+}
+/* A conversation started from the welcome screen: only the messages scroll, the composer stays put. */
+.welcome.chat-mode {
+  padding: 0;
+  overflow: hidden;
+  min-height: 0;
 }
 .welcome .inner {
   width: min(620px, 100%);

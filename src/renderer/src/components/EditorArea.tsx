@@ -21,7 +21,6 @@ function editorOptions(): monaco.editor.IStandaloneEditorConstructionOptions {
     fontLigatures: true,
     minimap: { enabled: e?.minimap ?? true, renderCharacters: false, scale: 1 },
     wordWrap: e?.wordWrap ? 'on' : 'off',
-    tabSize: e?.tabSize ?? 2,
     smoothScrolling: true,
     cursorBlinking: 'smooth',
     cursorSmoothCaretAnimation: 'on',
@@ -226,7 +225,10 @@ function CodeEditor({ path }: { path: string }) {
       const pos = editor.getPosition()
       const model = editor.getModel()
       if (!pos || !model) return
-      useApp.setState({ cursor: { line: pos.lineNumber, col: pos.column, language: model.getLanguageId(), eol: model.getEOL() === '\r\n' ? 'CRLF' : 'LF' } })
+      const o = model.getOptions()
+      useApp.setState({
+        cursor: { line: pos.lineNumber, col: pos.column, language: model.getLanguageId(), eol: model.getEOL() === '\r\n' ? 'CRLF' : 'LF', indent: o.insertSpaces ? `Spaces: ${o.tabSize}` : `Tab size: ${o.tabSize}` }
+      })
     }
     editor.onDidBlurEditorText(autoSaveOnBlur)
     editor.onDidChangeCursorPosition(updateCursor)

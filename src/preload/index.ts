@@ -26,6 +26,7 @@ const api = {
   platform: process.platform,
   /** True only under the dev screenshot harness (PRISM_SHOT). */
   automation: Boolean(process.env.PRISM_SHOT),
+  devShot: (path: string): Promise<void> => ipcRenderer.invoke('dev:shot', path),
   settings: {
     get: (): Promise<Settings> => ipcRenderer.invoke('settings:get'),
     save: (s: Settings): Promise<Settings> => ipcRenderer.invoke('settings:save', s),
