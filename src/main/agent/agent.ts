@@ -220,7 +220,7 @@ export class Agent {
         try {
           if (result.stopReason === 'max_tokens' || result.stopReason === 'refusal') {
             for (const c of calls) results.set(c.id, { output: 'Not run: the response was cut off before this tool call was complete.', isError: true })
-            emit({ type: 'error', message: 'The model ran out of output tokens while writing a tool call.' })
+            emit({ type: 'error', message: 'The reply was cut off before the tool call was finished, so it was not run.' })
             break
           }
           const runOne = async (call: (typeof calls)[number]) => {

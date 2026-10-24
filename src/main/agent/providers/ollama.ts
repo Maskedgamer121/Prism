@@ -1,6 +1,7 @@
 import type { ProviderConfig } from '@shared/types'
 import { ThinkSplitter, stripThink } from '../think-splitter'
 import { TextToolParser, textToolsPrompt, toTextToolMessages } from '../text-tools'
+import { estimateTokens, fitToContext } from '../context-fit'
 import type { CompleteRequest, NMessage, TurnRequest, TurnResult } from '../types'
 
 interface OllamaToolCall {
@@ -103,6 +104,29 @@ function brokenCallError(model: string, numCtx: number | undefined): Error {
   )
 }
 
+// Chats already told that old turns were dropped (keyed by the agent's history array).
+const trimNoticeShown = new WeakSet<NMessage[]>()
+
+/** The history trimmed to fit num_ctx, with a one-time notice per chat when turns are dropped. */
+function fitHistory(req: TurnRequest, system: string): NMessage[] {
+  const fit = fitToContext(req.messages, estimateTokens(system), req.ollamaNumCtx)
+  if (fit.dropped && !trimNoticeShown.has(req.messages)) {
+    trimNoticeShown.add(req.messages)
+    req.onNotice(
+      'info',
+      `This chat is longer than ${req.model}'s ${req.ollamaNumCtx.toLocaleString()}-token context window, so the oldest steps are left out of what the model sees. Start a new chat or raise "Ollama context window" in Settings → Agent to keep more.`
+    )
+  }
+  return fit.messages
+}
+
+function contextFullNotice(req: TurnRequest): void {
+  req.onNotice(
+    'warn',
+    `The reply didn't fit in ${req.model}'s ${req.ollamaNumCtx.toLocaleString()}-token context window. Raise "Ollama context window" in Settings → Agent (if your PC has the memory), ask for a smaller change, or start a new chat.`
+  )
+}
+
 /** Models trained on the Hermes `<tool_call>` format, which Ollama would otherwise parse (and hide) itself. */
 const HERMES_MODELS = /qwen|hermes|qwq/i
 
@@ -122,7 +146,10 @@ async function runOllamaTextTurn(req: TurnRequest): Promise<TurnResult> {
     '/api/chat',
     {
       model: req.model,
-      messages: toTextToolMessages(req.system + textToolsPrompt(req.tools), req.messages),
+      messages: (() => {
+        const system = req.system + textToolsPrompt(req.tools)
+        return toTextToolMessages(system, fitHistory(req, system))
+      })(),
       stream: true,
       options: { num_ctx: req.ollamaNumCtx, stop: ['<tool_response'] }
     },
@@ -147,6 +174,7 @@ async function runOllamaTextTurn(req: TurnRequest): Promise<TurnResult> {
   }
   splitter.flush()
   parser.flush()
+  if (doneReason === 'length') contextFullNotice(req)
   const parts: NMessage['parts'] = []
   if (parser.text.trim()) parts.push({ type: 'text', text: stripThink(parser.text) })
   for (const c of parser.calls) parts.push({ type: 'tool_call', id: c.id, name: c.name, input: c.input })
@@ -175,7 +203,7 @@ export async function runOllamaTurn(req: TurnRequest): Promise<TurnResult> {
         '/api/chat',
         {
           model: req.model,
-          messages: toOllama(req.system, req.messages),
+          messages: toOllama(req.system, fitHistory(req, req.system + JSON.stringify(tools))),
           stream: true,
           options: { num_ctx: req.ollamaNumCtx },
           ...(useTools ? { tools } : {})
@@ -243,6 +271,7 @@ export async function runOllamaTurn(req: TurnRequest): Promise<TurnResult> {
       req.onNotice('warn', `${req.model} sent a broken tool call — retrying (${badCalls}/2).`)
       continue
     }
+    if (doneReason === 'length') contextFullNotice(req)
     if (text.trim()) parts.unshift({ type: 'text', text: stripThink(text) })
     const hasCalls = parts.some((p) => p.type === 'tool_call')
     return {
