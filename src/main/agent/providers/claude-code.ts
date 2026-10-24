@@ -114,6 +114,8 @@ export function runClaudeCode(opts: RunOptions): Promise<void> {
     const toolInputs = new Map<string, Record<string, unknown>>()
     const beforeEdit = new Map<string, string | null>()
     const startedTools = new Set<string>()
+    // Content-block index → tool id within the current message, for streaming tool input.
+    const toolAt = new Map<number, string>()
 
     const handle = (msg: Record<string, any>) => {
       switch (msg.type) {
@@ -126,12 +128,18 @@ export function runClaudeCode(opts: RunOptions): Promise<void> {
           if (ev?.type === 'content_block_start' && ev.content_block?.type === 'tool_use') {
             const b = ev.content_block
             toolNames.set(b.id, b.name)
+            toolAt.set(ev.index, b.id)
             startedTools.add(b.id)
             opts.emit({ type: 'tool_start', id: b.id, name: b.name })
           } else if (ev?.type === 'content_block_delta') {
             if (ev.delta?.type === 'text_delta') opts.emit({ type: 'text', delta: ev.delta.text })
             else if (ev.delta?.type === 'thinking_delta') opts.emit({ type: 'thinking', delta: ev.delta.thinking })
+            else if (ev.delta?.type === 'input_json_delta' && ev.delta.partial_json) {
+              const id = toolAt.get(ev.index)
+              if (id) opts.emit({ type: 'tool_input_delta', id, delta: ev.delta.partial_json })
+            }
           } else if (ev?.type === 'message_start') {
+            toolAt.clear()
             opts.emit({ type: 'turn_start' })
           }
           break

@@ -47,6 +47,7 @@ export async function runOpenAITurn(req: TurnRequest): Promise<TurnResult> {
     function: { name: t.name, description: t.description, parameters: t.schema }
   }))
   let useTools = tools.length > 0
+  let badCalls = 0
 
   for (;;) {
     try {
@@ -88,9 +89,15 @@ export async function runOpenAITurn(req: TurnRequest): Promise<TurnResult> {
           if (tc.function?.name) {
             const first = !call.name
             call.name += tc.function.name
-            if (first) req.onToolStart(call.id, call.name)
+            if (first) {
+              req.onToolStart(call.id, call.name)
+              if (call.args) req.onToolInputDelta?.(call.id, call.args)
+            }
           }
-          if (tc.function?.arguments) call.args += tc.function.arguments
+          if (tc.function?.arguments) {
+            call.args += tc.function.arguments
+            if (call.name) req.onToolInputDelta?.(call.id, tc.function.arguments)
+          }
         }
         if (choice.finish_reason) finish = choice.finish_reason
       }
@@ -114,6 +121,19 @@ export async function runOpenAITurn(req: TurnRequest): Promise<TurnResult> {
         useTools = false
         req.onNotice('warn', `${req.model} doesn't support tool calling, so it can only chat — it can't read or edit files. Pick a tool-capable model (e.g. qwen2.5-coder, llama3.1, mistral-nemo) for agent mode.`)
         continue
+      }
+      // Local servers (llama.cpp, LM Studio) reject the turn when the model's tool-call JSON is cut off.
+      const msg = err instanceof Error ? err.message : String(err)
+      if (/invalid tool call|unexpected end of JSON|error parsing tool call/i.test(msg) && !req.signal.aborted) {
+        if (badCalls < 2) {
+          badCalls++
+          req.onNotice('warn', `${req.model} sent a broken tool call — retrying (${badCalls}/2).`)
+          continue
+        }
+        throw new Error(
+          `${req.model} keeps sending tool calls with broken JSON — usually because it ran out of context mid-file or is too small to write files reliably. ` +
+            'Try a stronger tool-calling model, give it a larger context window in your server, or ask for smaller edits.'
+        )
       }
       throw err
     }

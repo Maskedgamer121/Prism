@@ -1,5 +1,6 @@
 import type { ProviderConfig } from '@shared/types'
 import { ThinkSplitter, stripThink } from '../think-splitter'
+import { TextToolParser, textToolsPrompt, toTextToolMessages } from '../text-tools'
 import type { CompleteRequest, NMessage, TurnRequest, TurnResult } from '../types'
 
 interface OllamaToolCall {
@@ -93,12 +94,79 @@ async function post(p: ProviderConfig, path: string, body: unknown, signal: Abor
   return res
 }
 
+const BAD_TOOL_CALL = /invalid tool call|unexpected end of JSON|error parsing tool call/i
+
+function brokenCallError(model: string, numCtx: number | undefined): Error {
+  return new Error(
+    `${model} keeps sending tool calls with broken JSON — usually because it ran out of room mid-file or is too small to write files reliably. ` +
+      `Try a stronger tool-calling model (qwen2.5-coder:7b, qwen3:8b or larger), raise Ollama context size in Settings → Models (now ${numCtx ?? 'default'}), or ask for smaller edits.`
+  )
+}
+
+/** Models trained on the Hermes `<tool_call>` format, which Ollama would otherwise parse (and hide) itself. */
+const HERMES_MODELS = /qwen|hermes|qwq/i
+
+function useTextTools(req: TurnRequest): boolean {
+  if (!req.tools.length) return false
+  const mode = req.ollamaToolCalls ?? 'auto'
+  return mode === 'text' || (mode === 'auto' && HERMES_MODELS.test(req.model))
+}
+
+/**
+ * Tool calls written as tagged text that we parse ourselves, so the chat can show each call
+ * (a whole file, a command) while the model is still typing it.
+ */
+async function runOllamaTextTurn(req: TurnRequest): Promise<TurnResult> {
+  const res = await post(
+    req.provider,
+    '/api/chat',
+    {
+      model: req.model,
+      messages: toTextToolMessages(req.system + textToolsPrompt(req.tools), req.messages),
+      stream: true,
+      options: { num_ctx: req.ollamaNumCtx, stop: ['<tool_response'] }
+    },
+    req.signal
+  )
+  const parser = new TextToolParser({
+    onText: req.onText,
+    onToolStart: req.onToolStart,
+    onToolInputDelta: (id, delta) => req.onToolInputDelta?.(id, delta)
+  })
+  const splitter = new ThinkSplitter((s) => parser.push(s), req.onThinking)
+  let doneReason = ''
+  for await (const chunk of readNdjson(res)) {
+    if (chunk.error) throw new Error(chunk.error)
+    const msg = chunk.message
+    if (msg?.thinking) req.onThinking(msg.thinking)
+    if (msg?.content) splitter.push(msg.content)
+    if (chunk.done) {
+      doneReason = chunk.done_reason ?? ''
+      req.onUsage(chunk.prompt_eval_count ?? 0, chunk.eval_count ?? 0)
+    }
+  }
+  splitter.flush()
+  parser.flush()
+  const parts: NMessage['parts'] = []
+  if (parser.text.trim()) parts.push({ type: 'text', text: stripThink(parser.text) })
+  for (const c of parser.calls) parts.push({ type: 'tool_call', id: c.id, name: c.name, input: c.input })
+  const last = parser.calls[parser.calls.length - 1]
+  const lastBroken = !!last && typeof last.input === 'object' && last.input !== null && '__invalid_json' in last.input
+  const cutOff = doneReason === 'length' && (!last || lastBroken)
+  return {
+    message: { role: 'assistant', parts },
+    stopReason: cutOff ? 'max_tokens' : parser.calls.length ? 'tool_use' : 'end_turn'
+  }
+}
+
 export async function runOllamaTurn(req: TurnRequest): Promise<TurnResult> {
+  if (useTextTools(req)) return runOllamaTextTurn(req)
   const tools = req.tools.map((t) => ({
     type: 'function',
     function: { name: t.name, description: t.description, parameters: t.schema }
   }))
   let useTools = tools.length > 0
+  let badCalls = 0
   for (;;) {
     let res: Response
     try {
@@ -121,7 +189,12 @@ export async function runOllamaTurn(req: TurnRequest): Promise<TurnResult> {
         req.onNotice('warn', `${req.model} doesn't support tool calling, so it can only chat — it can't read or edit files. Try qwen2.5-coder, qwen3, llama3.1 or mistral-nemo for agent mode.`)
         continue
       }
-      throw err
+      if (BAD_TOOL_CALL.test(msg) && badCalls < 2) {
+        badCalls++
+        req.onNotice('warn', `${req.model} sent a broken tool call — retrying (${badCalls}/2).`)
+        continue
+      }
+      throw BAD_TOOL_CALL.test(msg) ? brokenCallError(req.model, req.ollamaNumCtx) : err
     }
 
     let text = ''
@@ -134,8 +207,12 @@ export async function runOllamaTurn(req: TurnRequest): Promise<TurnResult> {
     )
     const parts: NMessage['parts'] = []
     let doneReason = ''
+    let streamError = ''
     for await (const chunk of readNdjson(res)) {
-      if (chunk.error) throw new Error(chunk.error)
+      if (chunk.error) {
+        streamError = chunk.error
+        break
+      }
       const msg = chunk.message
       if (msg?.thinking) req.onThinking(msg.thinking)
       if (msg?.content) splitter.push(msg.content)
@@ -158,6 +235,14 @@ export async function runOllamaTurn(req: TurnRequest): Promise<TurnResult> {
       }
     }
     splitter.flush()
+    if (streamError) {
+      // Ollama parses tool calls itself and fails the stream when the model's JSON is cut off.
+      if (!BAD_TOOL_CALL.test(streamError)) throw new Error(streamError)
+      if (badCalls >= 2) throw brokenCallError(req.model, req.ollamaNumCtx)
+      badCalls++
+      req.onNotice('warn', `${req.model} sent a broken tool call — retrying (${badCalls}/2).`)
+      continue
+    }
     if (text.trim()) parts.unshift({ type: 'text', text: stripThink(text) })
     const hasCalls = parts.some((p) => p.type === 'tool_call')
     return {

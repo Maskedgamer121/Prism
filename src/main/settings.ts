@@ -21,6 +21,7 @@ const DEFAULTS: Settings = {
   permissionMode: 'ask',
   chatMode: 'agent',
   ollamaNumCtx: 16384,
+  ollamaToolCalls: 'auto',
   claudeServerWebSearch: false,
   autocomplete: { enabled: false, providerId: 'ollama', model: '' },
   autoUpdate: true,

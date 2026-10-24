@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   BookOpen,
   Check,
@@ -90,6 +90,35 @@ export function describe(name: string, input: In = {}): { icon: React.ReactNode;
   }
 }
 
+const LIVE_VERB: Record<string, string> = { Wrote: 'Writing', Edited: 'Editing', Ran: 'Preparing', Searched: 'Searching', 'Searched the web': 'Searching the web', Read: 'Reading' }
+
+/** What the model is typing into a tool call right now: file content, the replacement text, or the command. */
+function liveText(name: string, input: In): string {
+  if (typeof input.content === 'string') return input.content
+  if (typeof input.new_string === 'string') return input.new_string
+  if (typeof input.new_source === 'string') return input.new_source
+  if (Array.isArray(input.edits)) {
+    const last = input.edits[input.edits.length - 1] as In | undefined
+    return last ? s(last.new_string) : ''
+  }
+  if (typeof input.command === 'string' && /^(run_command|Bash|PowerShell)$/.test(name)) return input.command
+  return ''
+}
+
+/** Follows the end of the text as it grows, like a terminal. */
+function LivePreview({ text }: { text: string }) {
+  const ref = useRef<HTMLPreElement>(null)
+  useLayoutEffect(() => {
+    if (ref.current) ref.current.scrollTop = ref.current.scrollHeight
+  }, [text])
+  return (
+    <pre ref={ref} className="live-preview">
+      {text}
+      <span className="caret" />
+    </pre>
+  )
+}
+
 function DiffBlock({ before, after }: { before: string; after: string }) {
   const lines = useMemo(() => hunks(diffLines(before, after), 2), [before, after])
   return (
@@ -169,6 +198,8 @@ export function ToolCard({ block }: { block: ToolBlock }) {
   const [reverted, setReverted] = useState(false)
   const meta = block.meta
   const running = block.status === 'running' || block.status === 'pending'
+  const streaming = block.status === 'pending' && block.partial !== undefined
+  const live = streaming ? liveText(block.name, input) : ''
 
   if (block.status === 'awaiting' && block.approvalId) return <Approval block={block} input={input} />
 
@@ -183,7 +214,7 @@ export function ToolCard({ block }: { block: ToolBlock }) {
     before = ''
     after = s(input.content)
   }
-  const stats = after !== undefined && block.status !== 'error' && block.status !== 'denied' ?(meta?.added !== undefined ? { added: meta.added, removed: meta.removed ?? 0 } : diffStats(before ?? '', after)) : null
+  const stats = after !== undefined && !streaming && block.status !== 'error' && block.status !== 'denied' ?(meta?.added !== undefined ? { added: meta.added, removed: meta.removed ?? 0 } : diffStats(before ?? '', after)) : null
 
   const statusIcon = running ? (
     <Loader2 size={13} className="spin" />
@@ -213,7 +244,9 @@ export function ToolCard({ block }: { block: ToolBlock }) {
     <div className={`tool ${block.status}`}>
       <div className="tool-head" onClick={() => hasBody && setOpen(!open)}>
         {d.icon}
-        <span className={`verb${running ? ' shimmer' : ''}`}>{block.status === 'denied' ? `Skipped: ${d.verb.toLowerCase()}` : d.verb}</span>
+        <span className={`verb${running ? ' shimmer' : ''}`}>
+          {block.status === 'denied' ? `Skipped: ${d.verb.toLowerCase()}` : streaming ? (LIVE_VERB[d.verb] ?? d.verb) : d.verb}
+        </span>
         <span
           className="target"
           onClick={(e) => {
@@ -274,6 +307,11 @@ export function ToolCard({ block }: { block: ToolBlock }) {
               )}
             </div>
           )}
+        </div>
+      )}
+      {live && !open && (
+        <div className="tool-body">
+          <LivePreview text={live} />
         </div>
       )}
       {running && d.kind === 'exec' && block.output && !open && (

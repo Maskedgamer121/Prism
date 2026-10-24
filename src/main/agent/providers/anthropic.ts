@@ -113,14 +113,22 @@ export async function runAnthropicTurn(req: TurnRequest): Promise<TurnResult> {
         } as Anthropic.Beta.Messages.MessageCreateParamsStreaming,
         { signal: req.signal }
       )
+      const toolAt = new Map<number, string>()
       for await (const event of stream) {
         if (event.type === 'content_block_start') {
           const block = event.content_block
-          if (block.type === 'tool_use') req.onToolStart(block.id, block.name)
+          if (block.type === 'tool_use') {
+            toolAt.set(event.index, block.id)
+            req.onToolStart(block.id, block.name)
+          }
           else if (block.type === 'server_tool_use') req.onServerTool?.(block.id, block.name, {})
         } else if (event.type === 'content_block_delta') {
           if (event.delta.type === 'text_delta') req.onText(event.delta.text)
           else if (event.delta.type === 'thinking_delta') req.onThinking(event.delta.thinking)
+          else if (event.delta.type === 'input_json_delta') {
+            const id = toolAt.get(event.index)
+            if (id && event.delta.partial_json) req.onToolInputDelta?.(id, event.delta.partial_json)
+          }
         }
       }
       const message = await stream.finalMessage()

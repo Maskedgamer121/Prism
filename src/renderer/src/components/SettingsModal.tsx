@@ -470,6 +470,20 @@ export function SettingsModal() {
                     options={[4096, 8192, 16384, 32768, 65536, 131072].map((n) => ({ value: n, label: `${n.toLocaleString()} tokens` }))}
                   />
                 </Row>
+                <Row
+                  title="Ollama tool calls"
+                  desc="Ollama only reveals a tool call once it's finished, so you can't watch the model write a file. Streamed lets Prism read tool calls as they're typed, and sends broken ones back to the model to fix. Auto streams for Qwen and Hermes models."
+                >
+                  <Select<'auto' | 'native' | 'text'>
+                    value={draft.ollamaToolCalls ?? 'auto'}
+                    onChange={(v) => set({ ollamaToolCalls: v })}
+                    options={[
+                      { value: 'auto', label: 'Auto' },
+                      { value: 'text', label: 'Streamed (live)' },
+                      { value: 'native', label: "Ollama's parser" }
+                    ]}
+                  />
+                </Row>
               </div>
             </>
           )}

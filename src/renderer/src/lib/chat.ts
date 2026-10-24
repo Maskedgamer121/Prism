@@ -3,6 +3,7 @@ import { useApp, newId, toast, errorText, updateSettings, joinPath, relToWorkspa
 import { BUILTIN_COMMANDS } from './commands'
 import { activeFilePath, activeSelection, getActiveEditor, openFile } from './editor'
 import { absPath, addReview } from './review'
+import { parsePartialJson } from './partialJson'
 
 let customCommands: SlashCommand[] = []
 
@@ -54,12 +55,22 @@ function apply(messages: UiMessage[], e: AgentEvent): UiMessage[] {
     case 'tool_start':
       if (findTool(msg, e.id) < 0) blocks.push({ kind: 'tool', id: e.id, name: e.name, status: 'pending', server: e.server })
       break
+    case 'tool_input_delta': {
+      const i = findTool(msg, e.id)
+      if (i >= 0) {
+        const b = blocks[i] as Extract<UiBlock, { kind: 'tool' }>
+        if (b.status !== 'pending') break
+        const partial = (b.partial ?? '') + e.delta
+        blocks[i] = { ...b, partial, input: parsePartialJson(partial) ?? b.input }
+      }
+      break
+    }
     case 'tool_input': {
       const i = findTool(msg, e.id)
       if (i < 0) blocks.push({ kind: 'tool', id: e.id, name: e.name, input: e.input, status: 'running' })
       else {
         const b = blocks[i] as Extract<UiBlock, { kind: 'tool' }>
-        blocks[i] = { ...b, input: e.input, status: b.status === 'pending' ? 'running' : b.status }
+        blocks[i] = { ...b, input: e.input, partial: undefined, status: b.status === 'pending' ? 'running' : b.status }
       }
       break
     }
@@ -77,7 +88,7 @@ function apply(messages: UiMessage[], e: AgentEvent): UiMessage[] {
       if (i >= 0) {
         const b = blocks[i] as Extract<UiBlock, { kind: 'tool' }>
         const denied = b.status === 'denied'
-        blocks[i] = { ...b, output: e.output, meta: e.meta ?? b.meta, status: denied ? 'denied' : e.isError ? 'error' : 'done', approvalId: undefined }
+        blocks[i] = { ...b, output: e.output, meta: e.meta ?? b.meta, status: denied ? 'denied' : e.isError ? 'error' : 'done', approvalId: undefined, partial: undefined }
       }
       break
     }
@@ -85,7 +96,7 @@ function apply(messages: UiMessage[], e: AgentEvent): UiMessage[] {
       const i = findTool(msg, e.toolId)
       if (i >= 0) {
         const b = blocks[i] as Extract<UiBlock, { kind: 'tool' }>
-        blocks[i] = { ...b, input: e.input, status: 'awaiting', approvalId: e.requestId }
+        blocks[i] = { ...b, input: e.input, partial: undefined, status: 'awaiting', approvalId: e.requestId }
       } else blocks.push({ kind: 'tool', id: e.toolId, name: e.name, input: e.input, status: 'awaiting', approvalId: e.requestId })
       break
     }
@@ -151,7 +162,9 @@ export function initChatEvents(): () => void {
 async function persist(): Promise<void> {
   const { chatId, messages } = useApp.getState()
   if (!messages.length) return
-  await window.prism.chats.save(chatId, messages)
+  // Streaming leftovers (a call that was cut off) aren't worth saving.
+  const clean = messages.map((m) => ({ ...m, blocks: m.blocks.map((b) => (b.kind === 'tool' && b.partial !== undefined ? { ...b, partial: undefined } : b)) }))
+  await window.prism.chats.save(chatId, clean)
   useApp.setState({ chatList: await window.prism.chats.list() })
 }
 

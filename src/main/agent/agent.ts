@@ -191,10 +191,12 @@ export class Agent {
           effort: settings.effort,
           signal: controller.signal,
           ollamaNumCtx: settings.ollamaNumCtx,
+          ollamaToolCalls: settings.ollamaToolCalls,
           serverWebSearch: omitWeb,
           onText: (delta) => emit({ type: 'text', delta }),
           onThinking: (delta) => emit({ type: 'thinking', delta }),
           onToolStart: (id, name) => emit({ type: 'tool_start', id, name }),
+          onToolInputDelta: (id, delta) => emit({ type: 'tool_input_delta', id, delta }),
           onServerTool: (id, name, input) => {
             emit({ type: 'tool_start', id, name, server: true })
             emit({ type: 'tool_input', id, name, input })

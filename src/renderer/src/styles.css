@@ -2341,3 +2341,23 @@ kbd {
   font-size: 11px;
   color: var(--text-faint);
 }
+
+.tool-body pre.live-preview {
+  max-height: 220px;
+  overflow: auto;
+  margin: 0;
+}
+.live-preview .caret {
+  display: inline-block;
+  width: 7px;
+  height: 13px;
+  margin-left: 1px;
+  vertical-align: -2px;
+  background: var(--accent, #7aa2f7);
+  animation: caret-blink 1s steps(1) infinite;
+}
+@keyframes caret-blink {
+  50% {
+    opacity: 0;
+  }
+}

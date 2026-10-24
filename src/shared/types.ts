@@ -45,6 +45,8 @@ export interface Settings {
   permissionMode: PermissionMode
   chatMode: ChatMode
   ollamaNumCtx: number
+  /** 'text' streams tool calls live (Prism parses them); 'native' uses Ollama's parser; 'auto' picks per model. */
+  ollamaToolCalls: 'auto' | 'native' | 'text'
   claudeServerWebSearch: boolean
   autocomplete: { enabled: boolean; providerId: string; model: string }
   /** Download updates in the background and install them on quit. */
@@ -102,6 +104,8 @@ export type AgentEvent =
   | { type: 'thinking'; delta: string }
   | { type: 'tool_start'; id: string; name: string; server?: boolean }
   | { type: 'tool_input'; id: string; name: string; input: unknown }
+  /** Raw JSON of a tool call's input as the model types it, before the call is complete. */
+  | { type: 'tool_input_delta'; id: string; delta: string }
   | { type: 'tool_output'; id: string; delta: string }
   | { type: 'tool_result'; id: string; output: string; isError: boolean; meta?: ToolMeta }
   | { type: 'approval'; requestId: string; toolId: string; name: string; input: unknown }
@@ -146,6 +150,8 @@ export type UiBlock =
       meta?: ToolMeta
       server?: boolean
       approvalId?: string
+      /** Raw input JSON while the model is still writing the call. */
+      partial?: string
     }
   | { kind: 'plan'; items: PlanItem[] }
   | { kind: 'notice'; level: 'info' | 'warn' | 'error'; text: string }

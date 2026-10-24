@@ -28,6 +28,8 @@ export interface TurnCallbacks {
   onText: (delta: string) => void
   onThinking: (delta: string) => void
   onToolStart: (id: string, name: string) => void
+  /** Partial JSON of a tool call's input, streamed while the model writes it. */
+  onToolInputDelta?: (id: string, delta: string) => void
   /** Anthropic server tools (web search/fetch) run remotely; we only display them. */
   onServerTool?: (id: string, name: string, input: unknown) => void
   onServerToolResult?: (id: string, output: string, isError: boolean, meta?: ToolMeta) => void
@@ -44,6 +46,8 @@ export interface TurnRequest extends TurnCallbacks {
   effort: Effort
   signal: AbortSignal
   ollamaNumCtx: number
+  /** How Ollama models make tool calls: Ollama's own parser, or tagged text we stream and parse. */
+  ollamaToolCalls?: 'auto' | 'native' | 'text'
   serverWebSearch: boolean
 }
 
